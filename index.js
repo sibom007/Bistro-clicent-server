@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 const app = express();
 require('dotenv').config()
@@ -35,9 +35,24 @@ async function run() {
     await client.connect();
     // Send a ping to confirm a successful connection
 
+
+    const usercollaction = client.db("Bistro").collection("user");
     const Bistrocollaction = client.db("Bistro").collection("Manu");
     const ratingcollaction = client.db("Bistro").collection("Rating");
     const addcardcollaction = client.db("Bistro").collection("addcard");
+
+
+
+    app.post('/user', async (req, res) => {
+      const user = req.body;
+      const result = await usercollaction.insertOne(user)
+      res.send(result)
+    })
+
+
+
+
+
 
 
     app.get('/carts', async (req, res) => {
@@ -50,22 +65,30 @@ async function run() {
       res.send(result)
     })
 
+    app.delete('/carts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await addcardcollaction.deleteOne(query);
+      res.send(result)
+    })
+    //manu related
     app.get('/manu', async (req, res) => {
       const result = await Bistrocollaction.find().toArray();
       res.send(result);
     })
-
+    // rating related
     app.get('/rating', async (req, res) => {
       const result = await ratingcollaction.find().toArray();
       res.send(result);
     })
-
 
     app.post('/addcard', async (req, res) => {
       const item = req.body;
       const result = await addcardcollaction.insertOne(item)
       res.send(result);
     })
+
+
 
 
 
