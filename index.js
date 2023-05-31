@@ -3,17 +3,38 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 const app = express();
 require('dotenv').config()
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000
 
 
 app.use(cors());
 app.use(express.json());
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ error: true, message: 'unauthorized access' });
+  }
+  // bearer token
+  const token = authorization.split(' ')[1];
+
+  jwt.verify(token, process.env.ASSCES_TOKEN_SECRET, (err, decoded) => {
+    
+    if (err) {
+      return res.status(401).send({ error: true, message: 'unauthorized access 2' })
+    }
+    req.decoded = decoded;
+    next();
+  })
+}
+
+
+
 
 app.get('/', (req, res) => {
   res.send('res is run');
 })
-//   bisto
-// weDOS5qDEPQWxl80
+
+
 
 
 
@@ -43,23 +64,66 @@ async function run() {
 
 
 
+    app.get('/users', async (req, res) => {
+      const result = await usercollaction.find().toArray()
+      res.send(result)
+    })
+
     app.post('/user', async (req, res) => {
       const user = req.body;
+      const query = { email: user.email }
+      const existinguser = await usercollaction.findOne(query)
+      if (existinguser) {
+        return res.send({ message: 'user alredy exist' })
+      }
       const result = await usercollaction.insertOne(user)
       res.send(result)
     })
 
 
+    app.patch('/users/admin/:id', async (req, res) => {
+      const id = req.params.id
+      const filter = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {
+          role: 'admin'
+        },
+      };
+      const result = await usercollaction.updateOne(filter, updateDoc);
+      res.send(result)
+    })
+    app.delete('/users/admin/:id', async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await usercollaction.deleteOne(query);
+      res.send(result)
+    })
 
 
 
+    app.post('/jwt', (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ASSCES_TOKEN_SECRET, {
+        expiresIn: '1h'
+      })
+
+      res.send({ token })
+
+    })
 
 
-    app.get('/carts', async (req, res) => {
+    // carts data
+    app.get('/carts',verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([])
       }
+
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res.status(403).send({ error: true, message: 'porviden access' })
+      }
+
       const query = { email: email }
       const result = await addcardcollaction.find(query).toArray();
       res.send(result)
