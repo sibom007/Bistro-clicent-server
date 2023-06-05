@@ -5,6 +5,7 @@ const app = express();
 require('dotenv').config()
 const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000
+const stripe = require("stripe")(process.env.PAYMENT_GATAY)
 
 
 app.use(cors());
@@ -58,21 +59,25 @@ async function run() {
 
 
     const usercollaction = client.db("Bistro").collection("user");
-    const Bistrocollaction = client.db("Bistro").collection("Manu");
+    const Manucollaction = client.db("Bistro").collection("Manu");
     const ratingcollaction = client.db("Bistro").collection("Rating");
     const addcardcollaction = client.db("Bistro").collection("addcard");
+    const paymentCollection = client.db("Bistro").collection("payments");
 
+    //----------------------jwt token---------------------//
 
+    app.post('/jwt', (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ASSCES_TOKEN_SECRET, { expiresIn: '5h' })
 
-    // app.post('/jwt', (req, res) => {
-    //   const user = req.body;
-    //   const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
-
-    //   res.send({ token })
-    // })
+      res.send({ token })
+    })
 
 
     // Warning: use verifyJWT before using verifyAdmin
+
+
+
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email }
@@ -83,10 +88,9 @@ async function run() {
       next();
     }
 
+    //----------------------user all data-------------------------------------------//
 
-
-
-    app.get('/users', verifyJWT,verifyAdmin, async (req, res) => {
+    app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await usercollaction.find().toArray()
       res.send(result)
     })
@@ -138,18 +142,9 @@ async function run() {
 
 
 
-    app.post('/jwt', (req, res) => {
-      const user = req.body;
-      const token = jwt.sign(user, process.env.ASSCES_TOKEN_SECRET, {
-        expiresIn: '1h'
-      })
-
-      res.send({ token })
-
-    })
 
 
-    // carts data
+    //---------------------------carts data------------------------//
     app.get('/carts', verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
@@ -172,32 +167,68 @@ async function run() {
       const result = await addcardcollaction.deleteOne(query);
       res.send(result)
     })
-    //manu related
+
+
+    //--------------------------manu related-----------------//
     app.get('/manu', async (req, res) => {
-      const result = await Bistrocollaction.find().toArray();
+      const result = await Manucollaction.find().toArray();
       res.send(result);
     })
-    // rating related
+
+    app.post('/manu', async (req, res) => {
+      const Newmanu = req.body
+      const result = await Manucollaction.insertOne(Newmanu)
+      res.send(result)
+    })
+
+
+    app.delete('/manu/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const result = await Manucollaction.deleteOne(query);
+      res.send(result)
+    })
+
+    //---------------------rating related--------------------//
     app.get('/rating', async (req, res) => {
       const result = await ratingcollaction.find().toArray();
       res.send(result);
     })
 
+    //----------------add all cords----------------------//
     app.post('/addcard', async (req, res) => {
       const item = req.body;
       const result = await addcardcollaction.insertOne(item)
       res.send(result);
     })
 
+    //----------------------create payment gatway--------------------------//
 
+    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
 
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
 
+    //--------------------------payment relatede-----------------------//
+    app.post('/payments', verifyJWT, async (req, res) => {
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
 
+      const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } }
+      const deleteResult = await addcardcollaction.deleteMany(query)
 
-
-
-
-
+      res.send({ insertResult, deleteResult });
+    })
 
 
 
