@@ -230,6 +230,37 @@ async function run() {
       res.send({ insertResult, deleteResult });
     })
 
+    //-------------------admin home data-------------------//
+
+    app.get('/admin-stats', verifyJWT, verifyAdmin, async (req, res) => {
+      const users = await usercollaction.estimatedDocumentCount();
+      const products = await Manucollaction.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+
+      // best way to get sum of the price field is to use group and sum operator
+      /*
+        await paymentCollection.aggregate([
+          {
+            $group: {
+              _id: null,
+              total: { $sum: '$price' }
+            }
+          }
+        ]).toArray()
+      */
+
+      const payments = await paymentCollection.find().toArray();
+      const revenues = payments.reduce((sum, payment) => sum + payment.price, 0)
+      const revenue = revenues.toFixed(2)
+      console.log(revenue);
+
+      res.send({
+        revenue,
+        users,
+        products,
+        orders
+      })
+    })
 
 
     await client.db("admin").command({ ping: 1 });
